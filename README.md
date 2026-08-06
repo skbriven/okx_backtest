@@ -4,7 +4,7 @@ AlphaLab Backtest 是一个通过 YAML 配置运行的永续合约因子回测�
 Parquet 因子文件，在指定时间范围内同时回测多个预测周期，为每个周期生成独立结果，
 并按照配置的门槛决定是否将因子写入本地因子库。
 
-当前包版本：`0.3.0`
+当前包版本：`0.3.1`
 
 ## 1. 功能概览
 
@@ -53,7 +53,7 @@ Parquet 因子文件，在指定时间范围内同时回测多个预测周期，
 - PyYAML
 
 这些依赖会在联网安装 wheel 时自动解析和安装，但不包含在
-`alphalab_backtest-0.3.0-py3-none-any.whl` 文件内部。
+`alphalab_backtest-0.3.1-py3-none-any.whl` 文件内部。
 
 ### 2.2 建议的交付目录
 
@@ -61,15 +61,14 @@ Parquet 因子文件，在指定时间范围内同时回测多个预测周期，
 
 ```text
 alphalab-run/
-├─ alphalab_backtest-0.3.0-py3-none-any.whl
-├─ backtest.yaml
-├─ factors/
-│  └─ ret_10m.parquet
-├─ swap/
-│  └─ BTC-USDT-SWAP.parquet
-├─ returns/                 # 可以预先为空
-├─ results/                 # 程序自动创建
-└─ factor_store/            # 因子通过门槛后自动创建
+├─ alphalab_backtest-0.3.1-py3-none-any.whl
+└─ ret/
+   ├─ generate_ret.py
+   ├─ backtest.yaml
+   ├─ ret_10m.parquet       # 脚本在本目录生成
+   ├─ returns/              # 可以预先为空
+   ├─ results/              # 程序自动创建
+   └─ factor_store/         # 因子通过门槛后自动创建
 ```
 
 YAML 中的相对路径都以 YAML 文件所在目录为基准，因此推荐使用上面的结构和相对路径，
@@ -119,7 +118,7 @@ uv venv --python 3.12 .venv
 ### 3.3 安装 wheel
 
 ```powershell
-uv pip install --python .\.venv\Scripts\python.exe .\alphalab_backtest-0.3.0-py3-none-any.whl
+uv pip install --python .\.venv\Scripts\python.exe .\alphalab_backtest-0.3.1-py3-none-any.whl
 ```
 
 该命令会同时安装 wheel 声明的第三方依赖。验证安装：
@@ -131,7 +130,7 @@ uv pip install --python .\.venv\Scripts\python.exe .\alphalab_backtest-0.3.0-py3
 预期输出：
 
 ```text
-0.3.0
+0.3.1
 ```
 
 不需要激活虚拟环境；后续直接调用 `.venv` 内的命令即可。
@@ -150,7 +149,7 @@ uv pip install --python .\.venv\Scripts\python.exe .\alphalab_backtest-0.3.0-py3
 
 ```powershell
 uv venv --python 3.12 --seed .download-env
-.\.download-env\Scripts\python.exe -m pip download --dest .\wheelhouse .\alphalab_backtest-0.3.0-py3-none-any.whl
+.\.download-env\Scripts\python.exe -m pip download --dest .\wheelhouse .\alphalab_backtest-0.3.1-py3-none-any.whl
 ```
 
 把 `wheelhouse`、适用的 Python 安装包和 uv 离线程序一起复制到目标电脑。确认目标机
@@ -158,10 +157,10 @@ uv venv --python 3.12 --seed .download-env
 
 ```powershell
 uv venv --python 3.12 .venv
-uv pip install --offline --find-links .\wheelhouse --python .\.venv\Scripts\python.exe .\wheelhouse\alphalab_backtest-0.3.0-py3-none-any.whl
+uv pip install --offline --find-links .\wheelhouse --python .\.venv\Scripts\python.exe .\wheelhouse\alphalab_backtest-0.3.1-py3-none-any.whl
 ```
 
-如果交付内容只有 `alphalab_backtest-0.3.0-py3-none-any.whl`，则目标电脑仍需要联网
+如果交付内容只有 `alphalab_backtest-0.3.1-py3-none-any.whl`，则目标电脑仍需要联网
 下载第三方依赖。
 
 ## 5. 准备输入数据
@@ -195,7 +194,7 @@ factor = pd.DataFrame(
     {"ret_10m": np.random.standard_normal(len(index))},
     index=index,
 )
-factor.to_parquet("factors/ret_10m.parquet")
+factor.to_parquet("ret/ret_10m.parquet")
 ```
 
 不允许下面这些输入形式：
@@ -222,7 +221,7 @@ factor.to_parquet("factors/ret_10m.parquet")
 D:/crypto/okx/data/swap/BTC-USDT-SWAP.parquet
 ```
 
-close 文件支持两种格式。
+close 文件支持三种格式。
 
 格式一，`timestamp` 和 `close` 都是普通列：
 
@@ -235,7 +234,21 @@ pd.DataFrame(
 ).to_parquet("swap/BTC-USDT-SWAP.parquet", index=False)
 ```
 
-格式二，时间戳是 index，数据中有一个 `close` 列：
+格式二，原始 K 线使用 `datetime_utc` 时间列，并可包含其它行情列：
+
+```python
+pd.DataFrame(
+    {
+        "datetime_utc": timestamp_values,
+        "open": open_values,
+        "high": high_values,
+        "low": low_values,
+        "close": close_values,
+    }
+).to_parquet("swap/BTC-USDT-SWAP.parquet", index=False)
+```
+
+格式三，时间戳是 index，数据中有一个 `close` 列：
 
 ```python
 pd.DataFrame(
@@ -303,7 +316,7 @@ close[t + 6分钟] / close[t + 1分钟] - 1
 
 ## 6. 编写 YAML
 
-可以复制 [示例配置](examples/backtest.yaml)，再修改其中的路径和参数。
+可以复制 [`ret` 示例配置](examples/ret/backtest.yaml)，再修改其中的路径和参数。
 
 推荐的可移植配置如下：
 
@@ -311,12 +324,11 @@ close[t + 6分钟] / close[t + 1分钟] - 1
 version: 2
 
 factor:
-  name: ret_10m
-  path: ./factors/ret_10m.parquet
+  path: ./ret_10m.parquet
 
 market:
   instrument: BTC-USDT-SWAP
-  swap_directory: ./swap
+  swap_directory: D:/crypto/okx/data/swap
 
 returns:
   directory: ./returns
@@ -352,7 +364,7 @@ admission:
 
 registry:
   directory: ./factor_store
-  copy_factor_file: true
+  copy_factor_file: false
   overwrite: false
 
 output:
@@ -369,7 +381,7 @@ output:
 | 字段 | 是否必填 | 说明 |
 | --- | --- | --- |
 | `version` | 是 | 当前只能是 `2` |
-| `factor` | 是 | 候选因子名称和路径 |
+| `factor` | 是 | 候选因子 Parquet 路径 |
 | `market` | 是 | 永续合约名称和 close 目录 |
 | `returns` | 是 | 未来收益率目录及文件名模板 |
 | `time_range` | 是 | 本次完整回测区间 |
@@ -384,10 +396,10 @@ output:
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `name` | 因子文件名，不含扩展名 | 只能包含字母、数字、点、下划线和连字符 |
 | `path` | 无，必填 | 因子 Parquet 路径 |
 
-`name` 同时用于结果目录和因子库目录，建议保证同一个合约下名称唯一。
+框架自动使用因子 Parquet 的文件名（不含扩展名）作为报告和目录中的因子标识。
+同一个合约下应使用唯一的因子文件名，避免不同回测互相覆盖。
 
 ### 6.3 `market`
 
@@ -504,7 +516,7 @@ net_return[t] = position[t] × future_return[t] - cost[t]
 实际条目路径为：
 
 ```text
-<registry.directory>/<instrument>/<factor.name>/
+<registry.directory>/<instrument>/<因子文件名>/
 ```
 
 建议默认保留 `overwrite: false`，防止误覆盖已有因子。使用 `overwrite: true` 时，
@@ -524,7 +536,7 @@ net_return[t] = position[t] × future_return[t] - cost[t]
 实际结果路径为：
 
 ```text
-<output.directory>/<instrument>/<factor.name>/
+<output.directory>/<instrument>/<因子文件名>/
 ```
 
 结果目录和因子库目录不能相同，也不能互相包含。
@@ -536,13 +548,13 @@ net_return[t] = position[t] × future_return[t] - cost[t]
 Windows：
 
 ```powershell
-.\.venv\Scripts\alphalab.exe backtest --config .\backtest.yaml
+.\.venv\Scripts\alphalab.exe backtest --config .\ret\backtest.yaml
 ```
 
 Linux 或 macOS：
 
 ```bash
-./.venv/bin/alphalab backtest --config ./backtest.yaml
+./.venv/bin/alphalab backtest --config ./ret/backtest.yaml
 ```
 
 成功时会打印类似：
@@ -552,10 +564,10 @@ Factor: ret_10m
 Accepted horizons: [5, 15]
 Rejected horizons: [30, 60]
 Generated return files:
-- D:\alphalab-run\returns\BTC-USDT-SWAP\15min.parquet
-Results: D:\alphalab-run\results\BTC-USDT-SWAP\ret_10m
-HTML report: D:\alphalab-run\results\BTC-USDT-SWAP\ret_10m\report.html
-Registry: D:\alphalab-run\factor_store\BTC-USDT-SWAP\ret_10m
+- D:\alphalab-run\ret\returns\BTC-USDT-SWAP\15min.parquet
+Results: D:\alphalab-run\ret\results\BTC-USDT-SWAP\ret_10m
+HTML report: D:\alphalab-run\ret\results\BTC-USDT-SWAP\ret_10m\report.html
+Registry: D:\alphalab-run\ret\factor_store\BTC-USDT-SWAP\ret_10m
 ```
 
 若没有周期通过，最后一行是：
@@ -571,7 +583,7 @@ Registry: not admitted
 ```python
 from alphalab_backtest import run_backtest
 
-result = run_backtest("backtest.yaml")
+result = run_backtest("ret/backtest.yaml")
 
 print(result.summary)
 print(result.output_directory)
@@ -595,7 +607,7 @@ print(result.registry_directory)
 ```python
 from alphalab_backtest import load_config, run_backtest
 
-config = load_config("backtest.yaml")
+config = load_config("ret/backtest.yaml")
 print(config.market.instrument)
 print(config.backtest.prediction_horizons)
 
@@ -604,46 +616,39 @@ result = run_backtest(config)
 
 ## 8. 输出文件
 
-假设输出目录是 `./results`、因子库是 `./factor_store`，最终结构如下：
+`ret` 示例把输出和因子库保存在自己的目录中，最终结构如下：
 
 ```text
-returns/
-└─ BTC-USDT-SWAP/
-   ├─ 5min.parquet
-   ├─ 15min.parquet
-   ├─ 30min.parquet
-   └─ 60min.parquet
-
-results/
-└─ BTC-USDT-SWAP/
-   └─ ret_10m/
-      ├─ config.snapshot.yaml
-      ├─ summary.json
-      ├─ report.html
-      ├─ 5min/
-      │  ├─ metrics.json
-      │  ├─ strategy.parquet
-      │  └─ report.png
-      ├─ 15min/
-      │  ├─ metrics.json
-      │  ├─ strategy.parquet
-      │  └─ report.png
-      └─ ...
-
-factor_store/
-└─ BTC-USDT-SWAP/
-   └─ ret_10m/
-      ├─ factor.parquet
-      ├─ config.snapshot.yaml
-      ├─ metadata.json
-      └─ horizons/
-         ├─ 5min/
-         │  └─ metrics.json
-         └─ 15min/
-            └─ metrics.json
+ret/
+├─ ret_10m.parquet
+├─ returns/
+│  └─ BTC-USDT-SWAP/
+│     ├─ 5min.parquet
+│     ├─ 15min.parquet
+│     ├─ 30min.parquet
+│     └─ 60min.parquet
+├─ results/
+│  └─ BTC-USDT-SWAP/
+│     └─ ret_10m/
+│        ├─ config.snapshot.yaml
+│        ├─ summary.json
+│        ├─ report.html
+│        └─ ...
+└─ factor_store/
+   └─ BTC-USDT-SWAP/
+      └─ ret_10m/
+         ├─ config.snapshot.yaml
+         ├─ metadata.json
+         └─ horizons/
+            ├─ 5min/
+            │  └─ metrics.json
+            └─ 15min/
+               └─ metrics.json
 ```
 
-因子库的 `horizons` 中只保存通过门槛的周期。
+因子库的 `horizons` 中只保存通过门槛的周期。该示例设置
+`copy_factor_file: false`，所以不会在 `factor_store` 中复制 `ret_10m.parquet`；
+元数据仍会记录原始因子路径和 SHA-256。
 
 ### 8.1 `report.html`
 
@@ -743,7 +748,7 @@ factor_store/
 - `registry.overwrite: true` 会替换整个同合约同因子条目，应谨慎使用。
 - 修改了 close 数据但希望重新生成收益率时，需要先自行备份并移除目标收益率文件；
   框架不会自动判断已有收益率是否过期。
-- 为保留多次实验，推荐使用不同的 `factor.name` 或不同的 `output.directory`。
+- 为保留多次实验，推荐使用不同的因子 Parquet 文件名或不同的 `output.directory`。
 
 ## 11. 常见错误
 
@@ -782,8 +787,8 @@ factor_store/
 
 ### `Factor registry entry already exists`
 
-同合约、同因子名已存在于因子库。若不是明确要替换，不要直接开启覆盖；可以修改
-`factor.name` 或 `registry.directory`。
+同合约、同因子文件名已存在于因子库。若不是明确要替换，不要直接开启覆盖；可以修改
+因子 Parquet 文件名或 `registry.directory`。
 
 ### HTML 没有生成
 
@@ -840,5 +845,5 @@ uv build --wheel
 可以用下面的命令计算交付文件 SHA256，并将结果通过独立渠道提供给接收者：
 
 ```powershell
-Get-FileHash .\dist\alphalab_backtest-0.3.0-py3-none-any.whl -Algorithm SHA256
+Get-FileHash .\dist\alphalab_backtest-0.3.1-py3-none-any.whl -Algorithm SHA256
 ```

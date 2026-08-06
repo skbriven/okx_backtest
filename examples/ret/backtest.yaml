@@ -1,22 +1,22 @@
 version: 2
 
 factor:
-  path: ./ret/ret_10m.parquet
+  path: ./ret_10m.parquet
 
 market:
   instrument: BTC-USDT-SWAP
   swap_directory: D:/crypto/okx/data/swap
 
 returns:
-  directory: ./ret/returns
+  directory: ./returns
   file_pattern: "{instrument}/{horizon}min.parquet"
 
 time_range:
-  start: "2022-01-01T00:00:00Z"
-  end: "2026-04-01T00:00:00Z"
+  start: "2024-01-01T00:00:00Z"
+  end: "2025-12-31T00:00:00Z"
 
 backtest:
-  prediction_horizons: [5, 15, 30, 60]
+  prediction_horizons: [10, 30, 60, 180]
   direction:
     method: rolling_ic
     window: 30D
@@ -27,25 +27,23 @@ backtest:
     short_groups: [1]
   costs:
     fee_bps: 0
-    slippage_bps: 0
+    slippage_bps: 0.001
 
 admission:
   mode: per_horizon
   rules:
     min_valid_samples: 100000
     min_coverage: 0.95
-    min_ic: 0.005
-    min_icir: 1.0
-    min_sharpe: 0.8
-    max_absolute_drawdown: 0.40
+    min_ic: 0.03
+    min_icir: 0.5
 
 registry:
-  directory: ./ret/factor_store
+  directory: ./factor_store
   copy_factor_file: false
   overwrite: false
 
 output:
-  directory: ./ret/results
+  directory: ./results
   save_metrics_json: true
   save_strategy_parquet: true
   save_report_png: true
