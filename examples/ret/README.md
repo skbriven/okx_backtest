@@ -15,3 +15,6 @@ uv run alphalab backtest --config .\examples\ret\backtest.yaml
 
 `registry.copy_factor_file` 为 `false`，因此准入时不会在 `factor_store` 中
 重复复制 `ret_10m.parquet`。
+
+示例回测结果可直接打开：[report.html](report.html)。报告包含 10、30、60 和
+180 分钟预测周期的指标、准入检查及图表。
